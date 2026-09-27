@@ -16,6 +16,14 @@ void ComfortDecoder::on_fc_frame(const std::vector<uint8_t> &frame,
       frame[3] != 0x02)
     return;
 
+  // The final field is payload[31]. Reject truncated frames before any
+  // publication so they cannot refresh timeout filters with partial data.
+  if (payload.size() < 32) {
+    ESP_LOGW(TAG_COMFORT, "Short status payload: %u bytes, need 32",
+             (unsigned) payload.size());
+    return;
+  }
+
   // Since enabled_mask filtering routes here, we double check header
   r_.publish_hex_comfort(hex);
   ESP_LOGV(TAG_COMFORT, "COMFORT len=%u, frame.size()=%u, payload.size()=%u",
@@ -36,8 +44,8 @@ void ComfortDecoder::on_fc_frame(const std::vector<uint8_t> &frame,
   float tp_s = s16(10) / 10.0f;
 
   int stat = u16(12);
-  int bst = u32(14);
-  int kst = u32(18);
+  uint32_t bst = u32(14);
+  uint32_t kst = u32(18);
   int err = u16(22);
   int sens = u8(24);
 
@@ -77,7 +85,7 @@ void ComfortDecoder::on_fc_frame(const std::vector<uint8_t> &frame,
   r_.pub_comfort_phk2(p_hk2);
   r_.pub_comfort_pkes(p_kes);
 
-ESP_LOGI(TAG_COMFORT, "COMFORT: TI_S=%.1f  TI2_S=%.1f TV_S=%.1f  TV2_S=%.1f TW_S=%.1f TP_S=%.1f STAT=0x%04X BST=%u KST=%u ERR=0x%04X SENS=%u",
+ESP_LOGD(TAG_COMFORT, "COMFORT: TI_S=%.1f  TI2_S=%.1f TV_S=%.1f  TV2_S=%.1f TW_S=%.1f TP_S=%.1f STAT=0x%04X BST=%u KST=%u ERR=0x%04X SENS=%u",
                     ti_s, ti2_s, tv_s, tv2_s, tw_s, tp_s, stat, bst, kst, err, sens);
 
   // Status Bitfield
@@ -108,7 +116,7 @@ ESP_LOGI(TAG_COMFORT, "COMFORT: TI_S=%.1f  TI2_S=%.1f TV_S=%.1f  TV2_S=%.1f TW_S
   // Bit 12: OT
   r_.pub_comfort_stat_ot((bool)(stat & 4096));
 
-  ESP_LOGI(TAG_COMFORT,
+  ESP_LOGD(TAG_COMFORT,
   "COMFORT STATUS: PHK:%d PHK2:%d PK:%d M1:%d/%d M2:%d/%d ULV:%d PZI:%d B1:%d T:%d LON:%d OT:%d",
   (bool)(stat & 1),    // PHK
   (bool)(stat & 2),    // PHK2
@@ -131,7 +139,7 @@ void ComfortDecoder::on_fd_version_frame(uint8_t major, uint8_t minor,
                                          uint8_t patch) {
   char buf[16];
   snprintf(buf, sizeof(buf), "%u.%u.%u", major, minor, patch);
-  ESP_LOGI(TAG_COMFORT, "COMFORT: Firmware=%s", buf);
+  ESP_LOGD(TAG_COMFORT, "COMFORT: Firmware=%s", buf);
   r_.pub_comfort_fw_version(buf);
 }
 

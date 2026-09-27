@@ -1,4 +1,5 @@
 #include "palletti_ii.h"
+#include <cmath>
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -36,20 +37,27 @@ void Palletti2Decoder::on_fc_frame(const std::vector<uint8_t>& frame,
   snprintf(ts, sizeof(ts), "%02d.%02d %02d:%02d", day, month, hour, minute);
   r_.pub_palletti_ii_timestamp(ts);
 
+  // Unused probe values observed on Pelletti II. Do not turn these into
+  // 6500-degree temperatures, or reject legitimate signed outdoor readings.
+  auto temperature = [&](int offset) {
+    const uint16_t raw = u16(offset);
+    return (raw == 0xFEDB || raw == 0xFEDD) ? NAN : raw / 10.0f;
+  };
+
   // Werte gemäß Vorlage
   float ta = s16(8) / 10.0f;
-  float two = u16(10) / 10.0f;
-  float fa_tv = u16(12) / 10.0f;
-  float fa_tr = u16(14) / 10.0f;
-  float hk1_ti = u16(16) / 10.0f;
-  float hk2_ti2 = u16(18) / 10.0f;
-  float hk1_tv  = u16(20) / 10.0f;
-  float hk2_tv2 = u16(22) / 10.0f;
-  float hk1_tr = u16(24) / 10.0f;
-  float hk2_tr2 = u16(26) / 10.0f;
-  float tpo = u16(28) / 10.0f;
-  float tpu = u16(30) / 10.0f;
-  float tzr = u16(32) / 10.0f;
+  float two = temperature(10);
+  float fa_tv = temperature(12);
+  float fa_tr = temperature(14);
+  float hk1_ti = temperature(16);
+  float hk2_ti2 = temperature(18);
+  float hk1_tv  = temperature(20);
+  float hk2_tv2 = temperature(22);
+  float hk1_tr = temperature(24);
+  float hk2_tr2 = temperature(26);
+  float tpo = temperature(28);
+  float tpu = temperature(30);
+  float tzr = temperature(32);
   // Pump percentages, only present on the longer frame variants
   const bool has_pk = last_data >= 34;
   const bool has_phk1 = last_data >= 35;

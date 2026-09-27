@@ -488,8 +488,8 @@ public:
   inline void pub_comfort_tv2_s(float v) { if (comfort_tv2_s_) comfort_tv2_s_->publish_state(v);}
   inline void pub_comfort_tw_s(float v) { if (comfort_tw_s_) comfort_tw_s_->publish_state(v);}
   inline void pub_comfort_tp_s(float v) { if (comfort_tp_s_) comfort_tp_s_->publish_state(v);}
-  inline void pub_comfort_bst(int v) { if (comfort_bst_) comfort_bst_->publish_state(v);}
-  inline void pub_comfort_kst(int v) { if (comfort_kst_) comfort_kst_->publish_state(v);}
+  inline void pub_comfort_bst(uint32_t v) { if (comfort_bst_) comfort_bst_->publish_state(v);}
+  inline void pub_comfort_kst(uint32_t v) { if (comfort_kst_) comfort_kst_->publish_state(v);}
   inline void pub_comfort_sens(int v) { if (comfort_sens_) comfort_sens_->publish_state(v);}
   inline void pub_comfort_ba1(int v) { if (comfort_ba1_) comfort_ba1_->publish_state(v);}
   inline void pub_comfort_niv1(int v) { if (comfort_niv1_) comfort_niv1_->publish_state(v);}
