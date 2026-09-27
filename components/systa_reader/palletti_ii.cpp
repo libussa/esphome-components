@@ -107,19 +107,11 @@ void Palletti2Decoder::on_display_frame(const std::vector<uint8_t>& /*frame*/,
 
   if (ascii == last_display_) return;  // unverändert
 
-  const uint32_t now = millis();
-  if (last_display_ms_ != 0 && (uint32_t)(now - last_display_ms_) < DISPLAY_MIN_INTERVAL_MS) {
-    // innerhalb 5 min: nur leise loggen
-    ESP_LOGV(TAG_PALLETTI_II, "Display change suppressed (interval): \"%s\"", ascii.c_str());
-    // last_display_ bewusst NICHT aktualisieren: nach Ablauf wird der dann
-    // aktuelle Text veröffentlicht, sonst bliebe der Sensor auf altem Text
-    return;
-  }
-
+  // Publish every changed display. Suppressing changes for five minutes can
+  // lose the final value when the display stops changing inside that window.
   ESP_LOGD(TAG_PALLETTI_II, "Display-Text geändert: \"%s\"", ascii.c_str());
   r_.pub_palletti_ii_display_text(ascii);
   last_display_   = ascii;
-  last_display_ms_= now;
 }
 
 }  // namespace systa_reader
