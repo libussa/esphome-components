@@ -1,0 +1,328 @@
+substitutions:
+  device_name: "systa-bus-reader-e044af"
+  device_friendly_name: "Systa-BUS-Reader-E044AF"
+  device_id_name: "systa_bus_reader_e044af"
+  # Observed status/temperature cadence: about 10 seconds.
+  bus_sensor_timeout: 2min
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${device_friendly_name}
+
+
+esp8266:
+  board: nodemcu
+
+# Enable/Disable logging
+logger:
+  level: INFO
+  logs:
+    systa_reader.palletti_ii: WARN
+  baud_rate: 0  # disable logging over UART
+
+# Enable Home Assistant API
+api:
+  reboot_timeout: 120min
+  encryption:
+    key: !secret systa__encryption_key
+
+ota:
+  platform: esphome
+  encryption:
+
+wifi:
+  ssid: !secret wifi_ssid          # hier die wifi ssid einsetzen oder über secrets importieren
+  password: !secret wifi_password  # hier das wifi pw einsetzen oder über secrets importieren
+  min_auth_mode: WPA     # set to highest security your router supports WPA, WPA2 (WPA3 not supported for ESP8266)
+  reboot_timeout: 5min
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: ${device_friendly_name}-AP
+    password: !secret systa__fallback_password
+
+captive_portal:
+
+# web_server:
+#   local: true # no external content from internet (only version 2 supported)
+#   version: 2 # 1 or 2 (modern)
+#   port: 80
+  # auth:
+  #   username: !secret systa__web_username
+  #   password: !secret systa__web_password
+
+# for updates and code examples + more systa devices supported please check
+# https://github.com/dtill/esphome-components/tree/main/components/systa_reader
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/libussa/esphome-components
+      ref: b733c976a6a16e9db5ebab082ef45f3b36b0d57c
+    refresh: never
+    components: [systa_reader]
+
+uart:
+  id: uart_bus
+  # Receive only: GPIO13 uses hardware UART0 without an unused TX pin.
+  rx_pin: GPIO13
+  baud_rate: 9600
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+systa_reader:                              # can be multiple systa_reader but only one per uart.
+  - id: systa_bus_01
+    uart_id: uart_bus
+    systa_device: [palletti_ii, comfort]
+    log_invalid: true                      # logs invalid frames for debugging purpose
+
+
+debug:
+  update_interval: 30s
+
+sensor:
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+
+  # Reader diagnostics distinguish device restarts from bus/API outages.
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 10s
+    entity_category: diagnostic
+
+  - platform: wifi_signal
+    name: "WiFi Signal"
+    update_interval: 30s
+    entity_category: diagnostic
+
+  # PALLETTI-II sensors
+  - <<: &systa_temperature
+      platform: systa_reader
+      systa_reader_id: systa_bus_01
+      unit_of_measurement: "°C"
+      accuracy_decimals: 1
+      device_class: temperature
+      state_class: measurement
+      filters:
+        - timeout: ${bus_sensor_timeout}
+    kind: palletti_ii_ta
+    name: "Outside Temperature (TA)"
+
+  - <<: *systa_temperature
+    kind: palletti_ii_two
+    name: "Hot Water Temperature (TWO)"
+
+  - <<: *systa_temperature
+    kind: palletti_ii_fa_tv
+    name: "Boiler Temperature (FA TV)"
+
+  - <<: *systa_temperature
+    kind: palletti_ii_hk1_ti
+    name: "Room Temperature (TI)"
+
+  - <<: *systa_temperature
+    kind: palletti_ii_hk1_tv
+    name: "Supply Temperature Heating Circuit (TV)"
+
+  - <<: *systa_temperature
+    kind: palletti_ii_hk1_tr
+    name: "Return Temperature (TR)"
+
+  - <<: *systa_temperature
+    kind: palletti_ii_tpo
+    # Legacy name preserves the ESPHome unique ID and history.
+    # HA display name: Upper Buffer Temperature (TPO); no buffer installed.
+    name: "Hot Water Temperature Target (TPO)"
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: palletti_ii_hk1_phk
+    name: "Pump Heating Circuit (PHK)"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    state_class: measurement
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+
+  # Controller setpoints, distinct from measured temperatures.
+  - <<: *systa_temperature
+    kind: comfort_ti_s
+    name: "Requested Room Temperature"
+
+  - <<: *systa_temperature
+    kind: comfort_tv_s
+    name: "Requested Heating Flow Temperature"
+
+  - <<: *systa_temperature
+    kind: comfort_tw_s
+    name: "Requested Hot Water Temperature"
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_bst
+    name: "Boiler Operating Hours"
+    accuracy_decimals: 0
+    unit_of_measurement: h
+    device_class: duration
+    state_class: total_increasing
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_kst
+    name: "Boiler Starts"
+    accuracy_decimals: 0
+    state_class: total_increasing
+    icon: mdi:counter
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_ba1
+    name: "Heating Circuit Operating Mode"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_niv1
+    name: "Heating Circuit Operating Level"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_sens
+    name: "Sensor Error Code"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_phk1
+    name: "Heating Circuit Pump Command"
+    accuracy_decimals: 0
+    unit_of_measurement: "%"
+    state_class: measurement
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_pkes
+    name: "Boiler Pump Command"
+    accuracy_decimals: 0
+    unit_of_measurement: "%"
+    state_class: measurement
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+text_sensor:
+
+  - platform: debug
+    reset_reason:
+      name: "Reset Reason"
+
+  # PALLETTI-II text sensors:
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    mode: field
+    kind: palletti_ii_timestamp
+    name: "PALLETTI-II Timestamp"
+  # Store each display change internally; publish the latest screen once/min.
+  # Unlike dropping incoming changes, polling also delivers the final screen.
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    mode: field
+    kind: palletti_ii_display_text
+    id: systa_display_raw
+    internal: true
+  - platform: template
+    name: "PALLETTI-II Displaytext"
+    update_interval: 60s
+    lambda: |-
+      if (!id(systa_display_raw).has_state()) return {};
+      return id(systa_display_raw).state;
+    filters:
+      - lambda: |-
+          static bool published = false;
+          static std::string last_text;
+          if (published && x == last_text) return {};
+          published = true;
+          last_text = x;
+          return x;
+
+  # Historical diagnostics: firmware and last observed raw error word.
+  # 0xFFFF was observed at idle; it is NOT interpreted as an alarm.
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    mode: field
+    kind: comfort_boiler_err
+    name: "Last Boiler Error Word"
+    entity_category: diagnostic
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    mode: field
+    kind: comfort_fw_version
+    name: "Controller Firmware"
+    entity_category: diagnostic
+
+  - platform: wifi_info
+    ip_address:
+      name: "${device_friendly_name} IP ADDR"
+    ssid:
+      name: "${device_friendly_name} SSID"
+    bssid:
+      name: "${device_friendly_name} BSSID"
+  - platform: version
+    name: "${device_friendly_name} - ESPHome Version"
+    hide_timestamp: true
+
+
+binary_sensor:
+  # Controller bits indicate commands/status, not physical flow or flame.
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_stat_phk
+    name: "Heating Circuit Pump Active"
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_stat_pk
+    name: "Boiler Pump Active"
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_stat_b1
+    name: "Burner Contact"
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+  - platform: systa_reader
+    systa_reader_id: systa_bus_01
+    kind: comfort_stat_lon
+    name: "LON Module Status"
+    entity_category: diagnostic
+    filters:
+      - timeout: ${bus_sensor_timeout}
+
+button:
+  - platform: restart
+    id: ${device_id_name}_button_restart
+    name:  "${device_friendly_name} Restart"
