@@ -42,6 +42,9 @@ int main() {
   assert(screen.history.size()==2);assert(screen.state.substr(0,5)=="Final");
   auto corrupt_display=display("Corrupt");corrupt_display[10]^=1;
   reader.feed(corrupt_display);reader.loop();assert(screen.history.size()==2);
+  // A valid len=1 0x0F frame carries no payload and must not abort.
+  reader.feed(checked({0x0f,0x01,0x00,0x00}));reader.loop();
+  reader.feed(good);reader.loop();assert(temperature.history.size()==3);
 
   SystaReader comfort;
   sensor::Sensor hours, starts, target, mode;
